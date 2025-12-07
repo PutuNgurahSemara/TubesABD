@@ -3,6 +3,8 @@ import pandas as pd
 import random
 from datetime import datetime, timedelta
 
+random.seed(42)
+
 conn = psycopg2.connect(
     dbname="superstore",
     user="postgres",
@@ -13,6 +15,8 @@ conn = psycopg2.connect(
 
 def generate_sellers():
     """Generate data sellers yang realistis"""
+
+    random.seed(42)
     
     # Data sample untuk generate sellers
     regions = ['East', 'West', 'Central', 'South']
@@ -109,6 +113,7 @@ def insert_sellers(df):
 
 def assign_sellers_to_orders():
     """Assign seller_id secara random ke setiap order_details berdasarkan region"""
+    random.seed(42)
     cur = conn.cursor()
     
     print("🔧 Mengassign sellers ke order_details...")
