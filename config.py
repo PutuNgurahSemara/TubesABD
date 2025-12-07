@@ -80,7 +80,17 @@ def load_data():
     INNER JOIN sellers s ON d.seller_id = s.seller_id
     ORDER BY o.order_date DESC;
     """
-    return pd.read_sql(query, conn)
+    
+    # Load data
+    data = pd.read_sql(query, conn)
+    
+    # Convert numeric columns
+    numeric_cols = ['quantity', 'sales', 'profit', 'discount', 'seller_rating']
+    for col in numeric_cols:
+        if col in data.columns:
+            data[col] = pd.to_numeric(data[col], errors='coerce')
+    
+    return data
 
 def get_sales_by_category():
     """Query optimized: Sales per kategori (menggunakan index pada category)"""
@@ -288,3 +298,4 @@ def add_data():
 
 if __name__ == "__main__":
     add_data()
+
