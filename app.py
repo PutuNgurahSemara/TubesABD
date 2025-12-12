@@ -257,27 +257,34 @@ def create_yearly_sales_chart(df):
     )
     
     fig.update_traces(
-        texttemplate='%{text:.2s}', 
+        texttemplate='$%{text:,.0f}', 
         textposition='outside'
     )
     
     fig.update_layout(
         plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
+        paper_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(
+            type='category',
+            tickmode='linear'
+        )
     )
     
     return fig
 
 def create_ytd_comparison_chart(metrics):
     """Create comparison chart YTD vs Last Year"""
+    current_yr = metrics['current_year']
+    last_yr = current_yr - 1
+    
     chart_df = pd.DataFrame({
         "Metric": ["Sales", "Profit", "Margin %"],
-        "Current Year": [
+        f"{current_yr}": [
             metrics['sales_current'],
             metrics['profit_current'],
             metrics['margin_current']
         ],
-        "Last Year": [
+        f"{last_yr}": [
             metrics['sales_last'],
             metrics['profit_last'],
             metrics['margin_last']
@@ -287,14 +294,24 @@ def create_ytd_comparison_chart(metrics):
     fig = px.bar(
         chart_df,
         x="Metric",
-        y=["Current Year", "Last Year"],
+        y=[f"{current_yr}", f"{last_yr}"],
         barmode="group",
-        title="📊 Comparison: YTD vs Last Year"
+        title=f"Year-to-Date Performance: {current_yr} vs {last_yr}",
+        labels={"value": "Amount", "variable": "Year"},
+        color_discrete_sequence=['#27ae60', '#e67e22']
     )
     
     fig.update_layout(
         plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
+        paper_bgcolor='rgba(0,0,0,0)',
+        legend=dict(
+            title="Year",
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
     )
     
     return fig
@@ -348,17 +365,103 @@ def display_seller_analytics_section(seller_stats):
     
     # Performance table
     st.dataframe(seller_stats, width='stretch', hide_index=True)
-    
-    # Scatter plot
-    st.subheader("⭐ Seller Rating vs Total Profit")
-    fig_rating = create_seller_rating_chart(seller_stats)
-    st.plotly_chart(fig_rating, width='stretch')
 
 def display_overview_section(df):
     """Display section untuk data overview"""
     st.title("📊 Dashboard Superstore | Data Lokal Postgres")
-    st.write("Jumlah data:", len(df))
-    st.dataframe(df.head(20))
+    
+    # Metrics summary
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Records", f"{len(df):,}")
+    with col2:
+        total_sales = df['sales'].sum()
+        st.metric("Total Sales", f"${total_sales:,.2f}")
+    with col3:
+        total_profit = df['profit'].sum()
+        st.metric("Total Profit", f"${total_profit:,.2f}")
+    with col4:
+        unique_customers = df['customer_name'].nunique()
+        st.metric("Total Customers", f"{unique_customers:,}")
+    
+    st.markdown("---")
+    
+    # Tabel 1: Total Belanjaan per Customer
+    with st.expander("👥 Total Belanjaan per Customer", expanded=False):
+        customer_spending = df.groupby('customer_name').agg({
+            'order_id': 'count',
+            'sales': 'sum',
+            'profit': 'sum'
+        }).reset_index()
+        customer_spending.columns = ['Customer Name', 'Total Orders', 'Total Sales', 'Total Profit']
+        customer_spending = customer_spending.sort_values('Total Sales', ascending=False)
+        customer_spending['Total Sales'] = customer_spending['Total Sales'].apply(lambda x: f"${x:,.2f}")
+        customer_spending['Total Profit'] = customer_spending['Total Profit'].apply(lambda x: f"${x:,.2f}")
+        
+        st.dataframe(
+            customer_spending.head(20),
+            use_container_width=True,
+            hide_index=True
+        )
+    
+    # Tabel 2: Produk yang Terjual
+    with st.expander("📦 Produk yang Terjual", expanded=False):
+        product_sales = df.groupby(['product_name', 'category']).agg({
+            'quantity': 'sum',
+            'sales': 'sum',
+            'profit': 'sum'
+        }).reset_index()
+        product_sales.columns = ['Product Name', 'Category', 'Total Quantity Sold', 'Total Sales', 'Total Profit']
+        product_sales = product_sales.sort_values('Total Quantity Sold', ascending=False)
+        product_sales['Total Sales'] = product_sales['Total Sales'].apply(lambda x: f"${x:,.2f}")
+        product_sales['Total Profit'] = product_sales['Total Profit'].apply(lambda x: f"${x:,.2f}")
+        
+        st.dataframe(
+            product_sales.head(20),
+            use_container_width=True,
+            hide_index=True
+        )
+    
+    # Tabel 3: Order Summary
+    with st.expander("📋 Order Summary", expanded=False):
+        order_summary = df.groupby('order_id').agg({
+            'customer_name': 'first',
+            'order_date': 'first',
+            'sales': 'sum',
+            'profit': 'sum',
+            'product_name': 'count'
+        }).reset_index()
+        order_summary.columns = ['Order ID', 'Customer', 'Order Date', 'Total Sales', 'Total Profit', 'Items Count']
+        order_summary = order_summary.sort_values('Order Date', ascending=False)
+        order_summary['Order Date'] = pd.to_datetime(order_summary['Order Date']).dt.strftime('%Y-%m-%d')
+        order_summary['Total Sales'] = order_summary['Total Sales'].apply(lambda x: f"${x:,.2f}")
+        order_summary['Total Profit'] = order_summary['Total Profit'].apply(lambda x: f"${x:,.2f}")
+        
+        st.dataframe(
+            order_summary.head(20),
+            use_container_width=True,
+            hide_index=True
+        )
+    
+    # Tabel 4: Sales per Category
+    with st.expander("📊 Sales per Category", expanded=False):
+        category_sales = df.groupby('category').agg({
+            'sales': 'sum',
+            'profit': 'sum',
+            'quantity': 'sum',
+            'order_id': 'count'
+        }).reset_index()
+        category_sales.columns = ['Category', 'Total Sales', 'Total Profit', 'Total Quantity', 'Total Orders']
+        category_sales = category_sales.sort_values('Total Sales', ascending=False)
+        category_sales['Profit Margin %'] = (category_sales['Total Profit'] / category_sales['Total Sales'] * 100).round(2)
+        category_sales['Total Sales'] = category_sales['Total Sales'].apply(lambda x: f"${x:,.2f}")
+        category_sales['Total Profit'] = category_sales['Total Profit'].apply(lambda x: f"${x:,.2f}")
+        
+        st.dataframe(
+            category_sales,
+            use_container_width=True,
+            hide_index=True
+        )
 
 def display_yearly_sales_section(df):
     """Display section untuk yearly sales"""
@@ -368,78 +471,76 @@ def display_yearly_sales_section(df):
 
 def display_ytd_comparison_section(df):
     """Display section untuk YTD comparison"""
-    st.subheader("📈 Total Sales, Profit & Margin YTD vs Last Year")
-    
     metrics = get_yearly_comparison(df)
     
-    # KPI Cards
+    # Title dengan informasi tahun yang jelas
+    current_yr = metrics['current_year']
+    last_yr = current_yr - 1
+    
+    st.subheader(f"📈 Year-to-Date Comparison: {current_yr} vs {last_yr}")
+    st.markdown(f"*Comparing performance from January to current month for both years*")
+    
+    # Info box untuk menjelaskan periode
+    st.info(
+        f"📅 **Comparison Period:** January - Month {df[df['year'] == current_yr]['month'].max()} "
+        f"| **{current_yr}** vs **{last_yr}**"
+    )
+    
+    # KPI Cards dengan label yang lebih jelas
     col1, col2, col3 = st.columns(3)
     
     with col1:
         st.metric(
-            label=f"Sales YTD {metrics['current_year']}",
+            label=f"💰 Sales YTD {current_yr}",
             value=f"${metrics['sales_current']:,.2f}",
-            delta=f"{metrics['sales_growth']:.2f}% vs LY"
+            delta=f"{metrics['sales_growth']:.2f}% vs {last_yr}",
+            help=f"Total sales for {current_yr}: ${metrics['sales_current']:,.2f}\nTotal sales for {last_yr}: ${metrics['sales_last']:,.2f}"
         )
     
     with col2:
         st.metric(
-            label=f"Profit YTD {metrics['current_year']}",
+            label=f"📊 Profit YTD {current_yr}",
             value=f"${metrics['profit_current']:,.2f}",
-            delta=f"{metrics['profit_growth']:.2f}% vs LY"
+            delta=f"{metrics['profit_growth']:.2f}% vs {last_yr}",
+            help=f"Total profit for {current_yr}: ${metrics['profit_current']:,.2f}\nTotal profit for {last_yr}: ${metrics['profit_last']:,.2f}"
         )
     
     with col3:
         st.metric(
-            label=f"Margin YTD {metrics['current_year']}",
+            label=f"📈 Margin YTD {current_yr}",
             value=f"{metrics['margin_current']:.2f}%",
-            delta=f"{metrics['margin_growth']:.2f} pts"
+            delta=f"{metrics['margin_growth']:.2f} pts vs {last_yr}",
+            help=f"Profit margin for {current_yr}: {metrics['margin_current']:.2f}%\nProfit margin for {last_yr}: {metrics['margin_last']:.2f}%"
         )
     
-    # Comparison chart
+    # Comparison chart dengan title yang lebih deskriptif
+    st.markdown("---")
+    st.subheader(f"📊 Detailed Comparison: {current_yr} vs {last_yr}")
     fig = create_ytd_comparison_chart(metrics)
     st.plotly_chart(fig, width='stretch')
-
-def display_profitability_analysis_section(df):
-    """Display section untuk scatter plot sales vs profit"""
-    st.markdown("---")
-    st.subheader("🔵 Analisis Profitabilitas: Sales vs Profit")
     
-    # Kelompokkan data berdasarkan Sub-Category
-    scatter_data = df.groupby('sub_category')[['sales', 'profit']].sum().reset_index()
-    
-    # Buat Scatter Plot
-    fig_scatter = px.scatter(
-        scatter_data,
-        x='sales',
-        y='profit',
-        text='sub_category',
-        hover_name='sub_category',
-        title='Total Penjualan vs Total Profit berdasarkan Sub-Category',
-        labels={'sales': 'Total Sales', 'profit': 'Total Profit'},
-        size='sales',
-        color='profit',
-        color_continuous_scale='RdYlGn'
-    )
-    
-    # Pindahkan posisi text label
-    fig_scatter.update_traces(textposition='top center')
-    
-    # Tambahkan garis horizontal di angka 0
-    fig_scatter.add_hline(
-        y=0, 
-        line_dash="dash", 
-        line_color="red", 
-        annotation_text="Batas Impas (Break Even)"
-    )
-    
-    # Transparent background
-    fig_scatter.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
-    )
-    
-    st.plotly_chart(fig_scatter, width='stretch')
+    # Summary insights
+    with st.expander("📋 View Year Comparison Summary"):
+        summary_data = {
+            'Metric': ['Sales', 'Profit', 'Margin %'],
+            f'{current_yr}': [
+                f"${metrics['sales_current']:,.2f}",
+                f"${metrics['profit_current']:,.2f}",
+                f"{metrics['margin_current']:.2f}%"
+            ],
+            f'{last_yr}': [
+                f"${metrics['sales_last']:,.2f}",
+                f"${metrics['profit_last']:,.2f}",
+                f"{metrics['margin_last']:.2f}%"
+            ],
+            'Growth': [
+                f"{metrics['sales_growth']:+.2f}%",
+                f"{metrics['profit_growth']:+.2f}%",
+                f"{metrics['margin_growth']:+.2f} pts"
+            ]
+        }
+        summary_df = pd.DataFrame(summary_data)
+        st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
 # ==============================
 # MAIN APPLICATION
@@ -465,8 +566,7 @@ def main():
         "📉 Loss Products Analysis": "loss_products",
         "🏪 Seller Analytics": "seller_analytics",
         "📅 Yearly Sales": "yearly_sales",
-        "📈 YTD Comparison": "ytd_comparison",
-        "🔵 Profitability Analysis": "profitability"
+        "📈 YTD Comparison": "ytd_comparison"
     }
     
     # Create radio buttons for menu selection
@@ -506,8 +606,6 @@ def main():
         display_yearly_sales_section(df)
     elif selected_page == "ytd_comparison":
         display_ytd_comparison_section(df)
-    elif selected_page == "profitability":
-        display_profitability_analysis_section(df)
 
 if __name__ == "__main__":
     main()

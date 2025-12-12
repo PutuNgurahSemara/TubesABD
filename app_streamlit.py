@@ -258,13 +258,17 @@ def create_yearly_sales_chart(df):
     )
     
     fig.update_traces(
-        texttemplate='%{text:.2s}', 
+        texttemplate='$%{text:,.0f}', 
         textposition='outside'
     )
     
     fig.update_layout(
         plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
+        paper_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(
+            type='category',
+            tickmode='linear'
+        )
     )
     
     return fig
@@ -349,30 +353,103 @@ def display_seller_analytics_section(seller_stats):
     
     # Performance table
     st.dataframe(seller_stats, use_container_width=True, hide_index=True)
-    
-    # Scatter plot
-    st.subheader("⭐ Seller Rating vs Total Profit")
-    fig_rating = create_seller_rating_chart(seller_stats)
-    st.plotly_chart(fig_rating, use_container_width=True)
 
 def display_overview_section(df):
     """Display section untuk data overview"""
     st.title("📊 Dashboard Superstore Analytics")
-    st.write("Total Records:", len(df))
     
-    # Summary metrics
+    # Metrics summary
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Total Sales", f"${df['sales'].sum():,.2f}")
+        st.metric("Total Records", f"{len(df):,}")
     with col2:
-        st.metric("Total Profit", f"${df['profit'].sum():,.2f}")
+        total_sales = df['sales'].sum()
+        st.metric("Total Sales", f"${total_sales:,.2f}")
     with col3:
-        st.metric("Total Orders", f"{df['order_id'].nunique():,}")
+        total_profit = df['profit'].sum()
+        st.metric("Total Profit", f"${total_profit:,.2f}")
     with col4:
-        st.metric("Avg Order Value", f"${df['sales'].mean():,.2f}")
+        unique_customers = df['customer_name'].nunique()
+        st.metric("Total Customers", f"{unique_customers:,}")
     
     st.markdown("---")
-    st.dataframe(df.head(20), use_container_width=True)
+    
+    # Tabel 1: Total Belanjaan per Customer
+    with st.expander("👥 Total Belanjaan per Customer", expanded=False):
+        customer_spending = df.groupby('customer_name').agg({
+            'order_id': 'count',
+            'sales': 'sum',
+            'profit': 'sum'
+        }).reset_index()
+        customer_spending.columns = ['Customer Name', 'Total Orders', 'Total Sales', 'Total Profit']
+        customer_spending = customer_spending.sort_values('Total Sales', ascending=False)
+        customer_spending['Total Sales'] = customer_spending['Total Sales'].apply(lambda x: f"${x:,.2f}")
+        customer_spending['Total Profit'] = customer_spending['Total Profit'].apply(lambda x: f"${x:,.2f}")
+        
+        st.dataframe(
+            customer_spending.head(20),
+            use_container_width=True,
+            hide_index=True
+        )
+    
+    # Tabel 2: Produk yang Terjual
+    with st.expander("📦 Produk yang Terjual", expanded=False):
+        product_sales = df.groupby(['product_name', 'category']).agg({
+            'quantity': 'sum',
+            'sales': 'sum',
+            'profit': 'sum'
+        }).reset_index()
+        product_sales.columns = ['Product Name', 'Category', 'Total Quantity Sold', 'Total Sales', 'Total Profit']
+        product_sales = product_sales.sort_values('Total Quantity Sold', ascending=False)
+        product_sales['Total Sales'] = product_sales['Total Sales'].apply(lambda x: f"${x:,.2f}")
+        product_sales['Total Profit'] = product_sales['Total Profit'].apply(lambda x: f"${x:,.2f}")
+        
+        st.dataframe(
+            product_sales.head(20),
+            use_container_width=True,
+            hide_index=True
+        )
+    
+    # Tabel 3: Order Summary
+    with st.expander("📋 Order Summary", expanded=False):
+        order_summary = df.groupby('order_id').agg({
+            'customer_name': 'first',
+            'order_date': 'first',
+            'sales': 'sum',
+            'profit': 'sum',
+            'product_name': 'count'
+        }).reset_index()
+        order_summary.columns = ['Order ID', 'Customer', 'Order Date', 'Total Sales', 'Total Profit', 'Items Count']
+        order_summary = order_summary.sort_values('Order Date', ascending=False)
+        order_summary['Order Date'] = pd.to_datetime(order_summary['Order Date']).dt.strftime('%Y-%m-%d')
+        order_summary['Total Sales'] = order_summary['Total Sales'].apply(lambda x: f"${x:,.2f}")
+        order_summary['Total Profit'] = order_summary['Total Profit'].apply(lambda x: f"${x:,.2f}")
+        
+        st.dataframe(
+            order_summary.head(20),
+            use_container_width=True,
+            hide_index=True
+        )
+    
+    # Tabel 4: Sales per Category
+    with st.expander("📊 Sales per Category", expanded=False):
+        category_sales = df.groupby('category').agg({
+            'sales': 'sum',
+            'profit': 'sum',
+            'quantity': 'sum',
+            'order_id': 'count'
+        }).reset_index()
+        category_sales.columns = ['Category', 'Total Sales', 'Total Profit', 'Total Quantity', 'Total Orders']
+        category_sales = category_sales.sort_values('Total Sales', ascending=False)
+        category_sales['Profit Margin %'] = (category_sales['Total Profit'] / category_sales['Total Sales'] * 100).round(2)
+        category_sales['Total Sales'] = category_sales['Total Sales'].apply(lambda x: f"${x:,.2f}")
+        category_sales['Total Profit'] = category_sales['Total Profit'].apply(lambda x: f"${x:,.2f}")
+        
+        st.dataframe(
+            category_sales,
+            use_container_width=True,
+            hide_index=True
+        )
 
 def display_yearly_sales_section(df):
     """Display section untuk yearly sales"""
@@ -414,47 +491,6 @@ def display_ytd_comparison_section(df):
     fig = create_ytd_comparison_chart(metrics)
     st.plotly_chart(fig, use_container_width=True)
 
-def display_profitability_analysis_section(df):
-    """Display section untuk scatter plot sales vs profit"""
-    st.markdown("---")
-    st.subheader("🔵 Analisis Profitabilitas: Sales vs Profit")
-    
-    # Kelompokkan data berdasarkan Sub-Category
-    scatter_data = df.groupby('sub_category')[['sales', 'profit']].sum().reset_index()
-    
-    # Buat Scatter Plot
-    fig_scatter = px.scatter(
-        scatter_data,
-        x='sales',
-        y='profit',
-        text='sub_category',
-        hover_name='sub_category',
-        title='Total Penjualan vs Total Profit berdasarkan Sub-Category',
-        labels={'sales': 'Total Sales', 'profit': 'Total Profit'},
-        size='sales',
-        color='profit',
-        color_continuous_scale='RdYlGn'
-    )
-    
-    # Pindahkan posisi text label
-    fig_scatter.update_traces(textposition='top center')
-    
-    # Tambahkan garis horizontal di angka 0
-    fig_scatter.add_hline(
-        y=0, 
-        line_dash="dash", 
-        line_color="red", 
-        annotation_text="Batas Impas (Break Even)"
-    )
-    
-    # Transparent background
-    fig_scatter.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
-    )
-    
-    st.plotly_chart(fig_scatter, use_container_width=True)
-
 # ==============================
 # MAIN APPLICATION
 # ==============================
@@ -479,8 +515,7 @@ def main():
         "📉 Loss Products Analysis": "loss_products",
         "🏪 Seller Analytics": "seller_analytics",
         "📅 Yearly Sales": "yearly_sales",
-        "📈 YTD Comparison": "ytd_comparison",
-        "🔵 Profitability Analysis": "profitability"
+        "📈 YTD Comparison": "ytd_comparison"
     }
     
     # Create radio buttons for menu selection
@@ -520,8 +555,6 @@ def main():
         display_yearly_sales_section(df)
     elif selected_page == "ytd_comparison":
         display_ytd_comparison_section(df)
-    elif selected_page == "profitability":
-        display_profitability_analysis_section(df)
 
 if __name__ == "__main__":
     main()
