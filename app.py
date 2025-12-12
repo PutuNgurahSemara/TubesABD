@@ -7,7 +7,18 @@ from config import (
     get_top_sellers,
     get_seller_performance,
     get_sales_by_category,
-    get_profit_by_category
+    get_profit_by_category,
+    get_categories,
+    get_subcategories,
+    get_sellers,
+    get_customers,
+    get_products,
+    get_orders,
+    get_order_details,
+    get_order_invoice,  
+    search_orders,
+    get_rfm_analysis,
+    get_rfm_segment_summary  
 )
 
 # ==============================
@@ -17,7 +28,10 @@ COLORS = {
     'Furniture': '#e67e22',
     'Office Supplies': '#27ae60',
     'Technology': '#2980b9',
-    'Central': '#c0392b'
+    'Central': '#c0392b',
+    'East': '#3498db',
+    'West': '#9b59b6',
+    'South': '#e74c3c'
 }
 
 CATEGORIES = ['Furniture', 'Office Supplies', 'Technology']
@@ -207,7 +221,7 @@ def create_seller_sales_chart(seller_stats):
     )
     
     fig.update_traces(
-        texttemplate='$%{text:.2f}', 
+        texttemplate='$%{text:.2s}', 
         textposition='outside'
     )
     
@@ -258,6 +272,7 @@ def create_yearly_sales_chart(df):
     
     fig.update_traces(
         texttemplate='$%{text:,.0f}', 
+        texttemplate='$%{text:.2s}', 
         textposition='outside'
     )
     
@@ -326,7 +341,7 @@ def display_loss_products_section(product_loss):
     
     # Chart
     fig = create_loss_products_chart(product_loss)
-    st.plotly_chart(fig, width='stretch', config={
+    st.plotly_chart(fig, use_container_width=True, config={
         'displayModeBar': True,
         'displaylogo': False,
         'modeBarButtonsToRemove': ['pan2d', 'lasso2d', 'select2d']
@@ -337,7 +352,7 @@ def display_loss_products_section(product_loss):
         detail_df = product_loss[['product_name', 'category', 'quantity', 'profit']].copy()
         detail_df.columns = ['Product Name', 'Category', 'Quantity', 'Loss (Profit)']
         detail_df['Loss (Profit)'] = detail_df['Loss (Profit)'].apply(lambda x: f'${x:,.2f}')
-        st.dataframe(detail_df, width='stretch', hide_index=True)
+        st.dataframe(detail_df, use_container_width=True, hide_index=True)
     
     # Summary metrics
     st.markdown("---")
@@ -361,10 +376,10 @@ def display_seller_analytics_section(seller_stats):
     
     # Bar chart
     fig_sellers = create_seller_sales_chart(seller_stats)
-    st.plotly_chart(fig_sellers, width='stretch')
+    st.plotly_chart(fig_sellers, use_container_width=True)
     
     # Performance table
-    st.dataframe(seller_stats, width='stretch', hide_index=True)
+    st.dataframe(seller_stats, use_container_width=True, hide_index=True)
 
 def display_overview_section(df):
     """Display section untuk data overview"""
@@ -467,7 +482,7 @@ def display_yearly_sales_section(df):
     """Display section untuk yearly sales"""
     st.subheader("📅 Penjualan per Tahun")
     fig = create_yearly_sales_chart(df)
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, use_container_width=True)
 
 def display_ytd_comparison_section(df):
     """Display section untuk YTD comparison"""
@@ -518,29 +533,6 @@ def display_ytd_comparison_section(df):
     st.subheader(f"📊 Detailed Comparison: {current_yr} vs {last_yr}")
     fig = create_ytd_comparison_chart(metrics)
     st.plotly_chart(fig, width='stretch')
-    
-    # Summary insights
-    with st.expander("📋 View Year Comparison Summary"):
-        summary_data = {
-            'Metric': ['Sales', 'Profit', 'Margin %'],
-            f'{current_yr}': [
-                f"${metrics['sales_current']:,.2f}",
-                f"${metrics['profit_current']:,.2f}",
-                f"{metrics['margin_current']:.2f}%"
-            ],
-            f'{last_yr}': [
-                f"${metrics['sales_last']:,.2f}",
-                f"${metrics['profit_last']:,.2f}",
-                f"{metrics['margin_last']:.2f}%"
-            ],
-            'Growth': [
-                f"{metrics['sales_growth']:+.2f}%",
-                f"{metrics['profit_growth']:+.2f}%",
-                f"{metrics['margin_growth']:+.2f} pts"
-            ]
-        }
-        summary_df = pd.DataFrame(summary_data)
-        st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
 # ==============================
 # MAIN APPLICATION
@@ -606,6 +598,14 @@ def main():
         display_yearly_sales_section(df)
     elif selected_page == "ytd_comparison":
         display_ytd_comparison_section(df)
+    elif selected_page == "profitability":
+        display_profitability_analysis_section(df)
+    elif selected_page == "all_tables":
+        display_all_tables_section()
+    elif selected_page == "invoice":
+        display_invoice_section()
+    elif selected_page == "rfm":
+        display_rfm_analysis_section()
 
 if __name__ == "__main__":
     main()
